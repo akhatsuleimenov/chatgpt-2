@@ -19,14 +19,15 @@ gpt2-xl (1558M)
 The validation set of HellaSwag has a total of 10,042 examples.
 """
 
-import os
 import json
+import os
+
 import requests
 import tiktoken
-from tqdm import tqdm
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from tqdm import tqdm
 from transformers import GPT2LMHeadModel
 
 # -----------------------------------------------------------------------------
