@@ -19,8 +19,8 @@ import torch.distributed as dist
 import torch.nn as nn
 
 import hellaswag
-from gpt.dataloader import GPTDataLoader
-from gpt.train_gpt2 import GPT, GPTConfig
+from gpt.dataloader import DataLoaderLite
+from gpt.gpt import GPT, GPTConfig
 
 np.random.seed(1)
 torch.manual_seed(1)
@@ -35,17 +35,6 @@ CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache/")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 # ----------------------- Default training parameters for GPT-3 124M -------------------------
-# The total batch size is the number of tokens to process in a single iteration before a gradient
-# update, for GPT-2 / GPT-3 this is 2^19 = ~0.5M tokens. A cosine learning rate schedule is used,
-# with a warmup period of 375M tokens as in GPT-3. This corresponds to 375e6 / 2^19 = 715 warmup
-# iterations. A max learning rate of 18e-4 (3x that of GPT-3) is used with a linear decay over
-# the training period. Each epoch on the fineweb_edu_10B dataset corresponds to 10^10 / 2^19 =
-# 19073 iterations. The vocabulary size is rounded up to the nearest multiple of 128, which is
-# 50304, for efficiency. The model is trained for 4.5 epochs, which corresponds to 4.5 *
-# 19073 = 85829 iterations to surpass the performance of GPT-3 125M on the HellaSwag dataset.
-# Batch sizes of 32 / 64 are sufficient to fit a 124M model on a single GPU with 40GB / 80GB of
-# memory repsecitvely (if a block size of 1024 is used).
-# --------------------------------------------------------------------------------------------
 batch_size = 64
 total_batch_size = 524288
 vocab_size = 50304
@@ -148,19 +137,16 @@ if master_process:
 # Create a log file for the model
 log_file = os.path.join(CACHE_DIR, f"{abbr_size(n_params)}.txt")
 
-# Gradient accumulation is used to increase the effective batch size for training. The gradient
-# accumulation iterations is the number of itetations to process before a gradient update. The
-# total batch size must be divisible by the product of the batch size, block size, and number of
-# GPUs (ddp_world_size) for gradient accumulation to work correctly.
+# Gradient accumulation is used to increase the effective batch size for training.
 block_size = raw_model.config.block_size
 assert total_batch_size % (batch_size * block_size * ddp_world_size) == 0
 acc_iters = total_batch_size // (batch_size * block_size * ddp_world_size)
 
 # Load the fineweb_edu_10B dataset
-train_loader = GPTDataLoader(
+train_loader = DataLoaderLite(
     B=batch_size, T=block_size, proc_rank=ddp_rank, n_proc=ddp_world_size, split="train"
 )
-val_loader = GPTDataLoader(
+val_loader = DataLoaderLite(
     B=batch_size, T=block_size, proc_rank=ddp_rank, n_proc=ddp_world_size, split="val"
 )
 
